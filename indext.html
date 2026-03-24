@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTI人格测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        body {
+            background: #f5f7fa;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .progress {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .question {
+            margin: 25px 0;
+            padding: 15px;
+            border-left: 4px solid #42b983;
+            background: #f9f9f9;
+        }
+        .q-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        .options {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .option {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .option.active {
+            background: #42b983;
+            color: white;
+            border-color: #42b983;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: #42b983;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 30px;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            display: none;
+        }
+        .result h2 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .type {
+            font-size: 24px;
+            font-weight: bold;
+            color: #d84315;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MBTI人格测试</h1>
+        <div class="progress">已完成：<span id="count">0</span>/20题</div>
+
+        <div id="questions"></div>
+        <button class="btn" id="submit" disabled>生成测试结果</button>
+
+        <div class="result" id="result">
+            <h2>你的测试结果</h2>
+            <div class="type" id="type"></div>
+            <div id="desc"></div>
+        </div>
+    </div>
+
+    <script>
+        // 1. 题目配置（20题，4维度各5题）
+        const questions = [
+            // E/I 外向/内向
+            {id:1, text:"聚会时你更倾向？", A:"主动交流(E)", B:"安静观察(I)", type:"EI"},
+            {id:2, text:"你更擅长？", A:"多人沟通(E)", B:"独处思考(I)", type:"EI"},
+            {id:3, text:"恢复精力靠？", A:"社交活动(E)", B:"独自安静(I)", type:"EI"},
+            {id:4, text:"表达想法时？", A:"直接说出来(E)", B:"先想清楚再说(I)", type:"EI"},
+            {id:5, text:"周末更喜欢？", A:"出门聚会(E)", B:"宅家休息(I)", type:"EI"},
+            
+            // S/N 实感/直觉
+            {id:6, text:"你更关注？", A:"现实细节(S)", B:"未来可能(N)", type:"SN"},
+            {id:7, text:"学习时偏好？", A:"实操经验(S)", B:"理论概念(N)", type:"SN"},
+            {id:8, text:"描述事情时？", A:"客观事实(S)", B:"想象联想(N)", type:"SN"},
+            {id:9, text:"做决定依据？", A:"已知经验(S)", B:"灵感直觉(N)", type:"SN"},
+            {id:10, text:"看待新事物？", A:"看实用性(S)", B:"看创意性(N)", type:"SN"},
+            
+            // T/F 思考/情感
+            {id:11, text:"做决策更看重？", A:"逻辑公平(T)", B:"人情感受(F)", type:"TF"},
+            {id:12, text:"批评别人时？", A:"直接坦率(T)", B:"委婉照顾(F)", type:"TF"},
+            {id:13, text:"解决问题靠？", A:"理性分析(T)", B:"共情理解(F)", type:"TF"},
+            {id:14, text:"更在意？", A:"对错真理(T)", B:"和谐关系(F)", type:"TF"},
+            {id:15, text:"评价标准？", A:"客观规则(T)", B:"个人感受(F)", type:"TF"},
+            
+            // J/P 判断/感知
+            {id:16, text:"生活习惯？", A:"计划有序(J)", B:"随性自由(P)", type:"JP"},
+            {id:17, text:"截止日期前？", A:"提前完成(J)", B:"临时冲刺(P)", type:"JP"},
+            {id:18, text:"更喜欢？", A:"确定安排(J)", B:"灵活变化(P)", type:"JP"},
+            {id:19, text:"整理东西？", A:"规整分类(J)", B:"随意摆放(P)", type:"JP"},
+            {id:20, text:"面对变化？", A:"尽快适应(J)", B:"享受未知(P)", type:"JP"}
+        ];
+
+        // 2. 存储答案
+        let answers = {};
+        let score = {E:0,I:0,S:0,N:0,T:0,F:0,J:0,P:0};
+
+        // 3. 渲染题目
+        const questionEl = document.getElementById("questions");
+        const countEl = document.getElementById("count");
+        const submitBtn = document.getElementById("submit");
+        const resultEl = document.getElementById("result");
+        const typeEl = document.getElementById("type");
+        const descEl = document.getElementById("desc");
+
+        function renderQuestions() {
+            questionEl.innerHTML = "";
+            questions.forEach(q => {
+                const div = document.createElement("div");
+                div.className = "question";
+                div.innerHTML = `
+                    <div class="q-title">${q.id}. ${q.text}</div>
+                    <div class="options">
+                        <div class="option" data-id="${q.id}" data-value="A">${q.A}</div>
+                        <div class="option" data-id="${q.id}" data-value="B">${q.B}</div>
+                    </div>
+                `;
+                questionEl.appendChild(div);
+            });
+
+            // 绑定选择事件
+            document.querySelectorAll(".option").forEach(opt => {
+                opt.addEventListener("click", function() {
+                    const qid = this.dataset.id;
+                    const val = this.dataset.value;
+                    answers[qid] = val;
+                    
+                    // 高亮选中
+                    this.parentElement.querySelectorAll(".option").forEach(o => o.classList.remove("active"));
+                    this.classList.add("active");
+                    
+                    // 更新进度
+                    countEl.textContent = Object.keys(answers).length;
+                    submitBtn.disabled = Object.keys(answers).length !== 20;
+                });
+            });
+        }
+
+        // 4. 计算分数 + 生成结果
+        function calculate() {
+            score = {E:0,I:0,S:0,N:0,T:0,F:0,J:0,P:0};
+            questions.forEach(q => {
+                const ans = answers[q.id];
+                if (q.type === "EI") ans === "A" ? score.E++ : score.I++;
+                if (q.type === "SN") ans === "A" ? score.S++ : score.N++;
+                if (q.type === "TF") ans === "A" ? score.T++ : score.F++;
+                if (q.type === "JP") ans === "A" ? score.J++ : score.P++;
+            });
+
+            // 组合类型
+            const ei = score.E > score.I ? "E" : "I";
+            const sn = score.S > score.N ? "S" : "N";
+            const tf = score.T > score.F ? "T" : "F";
+            const jp = score.J > score.P ? "J" : "P";
+            const type = ei + sn + tf + jp;
+
+            // 结果解读（可自行扩展）
+            const resultDesc = {
+                "INTJ":"【专家型】独立、理性、擅长战略规划，追求高效与深度思考",
+                "INTP":"【学者型】好奇、灵活、热爱探索逻辑与本质，不喜束缚",
+                "ENTJ":"【指挥官】果断、领导力强、目标导向，善于统筹全局",
+                "ENTP":"【辩论家】机智、创新、喜欢挑战，擅长多角度思考",
+                "INFJ":"【咨询师】温柔、有洞察力、理想主义，重视精神共鸣",
+                "INFP":"【治愈者】敏感、真诚、追求内心价值，富有同理心",
+                "ENFJ":"【教育家】热情、善于鼓舞他人，重视人际关系和谐",
+                "ENFP":"【追梦家】创意无限、乐观自由，热爱探索新可能",
+                "ISTJ":"【检查员】严谨、负责、守规则，做事踏实可靠",
+                "ISFJ":"【守护者】细心、体贴、有耐心，默默照顾身边人",
+                "ESTJ":"【管理者】务实、高效、讲原则，擅长组织执行",
+                "ESFJ":"【东道主】热心、社交力强，重视传统与他人感受",
+                "ISTP":"【手艺人】冷静、务实、动手能力强，灵活应变",
+                "ISFP":"【艺术家】温和、敏感、热爱生活，注重当下体验",
+                "ESTP":"【企业家】活力、直率、擅长社交，敢于尝试",
+                "ESFP":"【表演者】乐观、热情、享受当下，充满感染力"
+            };
+
+            // 展示结果
+            typeEl.textContent = type;
+            descEl.textContent = resultDesc[type] || "你的人格独一无二，拥有独特魅力！";
+            resultEl.style.display = "block";
+        }
+
+        // 初始化
+        renderQuestions();
+        submitBtn.addEventListener("click", calculate);
+    </script>
+</body>
+
+</html>
